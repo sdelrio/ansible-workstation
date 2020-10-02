@@ -1,0 +1,35 @@
+#!/usr/bin/env ansible-playbook
+#!/usr/bin/env -S ansible-playbook -K
+---
+- name: "Ryzen - Ubuntu/Mint 20"
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  # Become diferences:
+  #  https://www.middlewareinventory.com/blog/ansible-sudo-ansible-become-example/
+  
+  become: yes
+  become_method: sudo
+
+  vars:
+
+#    grub:
+#      filename: /etc/default/grub
+#      hugepages: 8192
+#    vm:
+#      vga_passthrough: true
+#      bus_ids:
+#        - 0000:0a:00.0
+#        - 0000:0a:00.1
+
+  roles:
+    - role: kvm
+      tags: [ kvm ]
+    - role: tools
+      tags: [ tools ]
+    - role: photo
+      tags: [ photo ]
+    - role: gaming
+      tags: [ gaming ]
+

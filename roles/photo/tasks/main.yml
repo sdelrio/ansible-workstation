@@ -1,0 +1,76 @@
+---
+# tasks file for photo
+- name: "Add apt key for darktable"
+  apt_key:
+    url: https://download.opensuse.org/repositories/graphics:darktable/xUbuntu_20.04/Release.key
+    state: present
+
+- name: "Add apt repositofy for darktable latest releases"
+  apt_repository:
+    repo: "deb http://download.opensuse.org/repositories/graphics:/darktable/xUbuntu_20.04/ /"
+    state: present
+    filename: darktable
+
+- name: "APT Photo packages"
+  apt:
+    name:
+      - gnome-color-manager
+      - argyll
+      - darktable
+      - liblensfun-bin  # https://www.reddit.com/r/DarkTable/comments/ibem1v/i_would_like_the_database_of_lensfun_as_part_of/
+      - sshfs # to get files from external serves (nuc with ssd reader)
+#      - rapid-photo-downloader   # At the moment mint packaging has a bug and doesn't start so have to be installed manually
+#      # https://ubunlog.com/rapid-photo-downloader-renombrado-masivo/
+    state: latest
+
+- name: "Add OpenCL AMD ROCM gpg key"
+  apt_key:
+    url: https://repo.radeon.com/rocm/apt/debian/rocm.gpg.key
+    state: present
+
+
+- name: "Add OpenCL AMD ROCM repo"
+  apt_repository:
+    repo: "deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ xenial main"
+#    repo: "deb [arch=amd64] https://repo.radeon.com/rocm/apt/3.1.1/ xenial main"
+#    codename: xenial
+    state: present
+    filename: rocm
+
+- name: "APT OpenCL required packages"
+  apt:
+    name:
+      - libnuma-dev
+      - rocm-dkms
+    state: latest
+
+- name: "Adding video group to user {{ lookup('env', 'USER') }}"
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "{{ item }}"
+    append: yes
+  with_items:
+    - video
+    - render
+
+- name: "Enable extra groups "
+  lineinfile:
+    dest: "/etc/adduser.conf"
+    regexp: '^ADD_EXTRA_GROUPS=.*'
+    line: 'ADD_EXTRA_GROUPS=1'
+#    backrefs: yes
+
+- name: "Add extra group video"
+  lineinfile:
+    dest: "/etc/adduser.conf"
+    regexp: '^EXTRA_GROUPS=.*'
+    line: 'EXTRA_GROUPS=video'
+#    backrefs: yes
+
+- name: "Add Rocm bin to path"
+  copy:
+    content: |
+      export PATH=$PATH:/opt/rocm/bin:/opt/rocm/profiler/bin:/opt/rocm/opencl/bin
+    dest: /etc/profile.d/rocm.sh
+    mode: '0755'
+

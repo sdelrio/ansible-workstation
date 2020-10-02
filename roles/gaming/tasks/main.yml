@@ -1,0 +1,16 @@
+---
+
+- name: "Add Lutris APT repo"
+  apt_repository:
+    repo: ppa:lutris-team/lutris
+    state: present
+    codename: focal
+
+- name: "Install Lutris and Seam"
+  apt:
+    name:
+      - lutris
+      - steam
+    update_cache: yes
+    state: latest
+

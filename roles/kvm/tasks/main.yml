@@ -1,0 +1,275 @@
+---
+
+- name: "APT VM packages"
+  apt:
+    name:
+      - qemu-kvm
+      - qemu-utils
+      - libvirt-daemon-system
+      - libvirt-clients
+      - virt-manager
+      - ovmf
+      - hwloc                 # lstopo utility
+      - libhugetlbfs-bin      # hugeadm: Tools to ease use of hugetlbfs
+      - nfs-kernel-server     # To share files between host and guest
+
+# GRUB CMD LINE
+
+- name: "Get CMDLINE grep on kernel grub boot"
+  shell: "grep 'GRUB_CMDLINE_LINUX_DEFAULT=.*' {{ grub.filename }}"
+  register: grub_cfg_grep
+  changed_when: false
+  check_mode: no
+
+- name: "IOMMU enable on kernel boot"
+  lineinfile:
+    dest: "{{ grub.filename }}"
+    backrefs: yes
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(.*)(".*)$'
+    line: '\1\2 amd_iommu=on\3'
+  when: '("iommu=on" not in grub_cfg_grep.stdout)'
+  notify: update grub
+
+
+- name: "IOMMU passthrough on kernel boot"
+  lineinfile:
+    dest: "{{ grub.filename }}"
+    backrefs: yes
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(.*)(".*)$'
+    line: '\1\2 amd_iommu=pt\3'
+  when: '("iommu=pt" not in grub_cfg_grep.stdout)'
+  notify: update grub
+
+- name: "HUGEPAGES on kernel boot"
+  lineinfile:
+    dest: "{{ grub.filename }}"
+    backrefs: yes
+    regexp: '^(GRUB_CMDLINE_LINUX_DEFAULT=")(.*)(".*)$'
+    line: '\1\2 hugepages={{ grub.hugepages }}\3'
+  when: '("hugepages" not in grub_cfg_grep.stdout)'
+  notify: update grub
+
+# Disable 2nd vga at boot time before any other apps uses amdgpu driver
+
+- name: "INITRAMFS 2nd vga PCU BUS ID"
+  copy:
+    content: |
+      #!/bin/sh
+
+      DEVS="{{ vm.bus_ids | join(' ') }}"
+      #echo VFIO
+      ls -l /sys/bus/pci/drivers/vfio-pci
+      echo AMDGPU
+      ls -l /sys/bus/pci/drivers/amdgpu
+      echo "disconnecting amd graphics"
+      echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.0/remove
+      echo "disconnecting amd sound counterpart"
+      echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.1/remove
+
+      for DEV in $DEVS; do
+        echo "vfio-pci" > "/sys/bus/pci/devices/$DEV/driver_override"
+      #  echo "$DEV" > /sys/bus/pci/devices/$DEV/driver/unbind
+      #  echo "$DEV" > /sys/bus/pci/drivers/vfio-pci/bind
+        cat "/sys/bus/pci/devices/$DEV/driver_override"
+      done
+
+      modprobe -i vfio-pci
+
+    dest: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
+    mode: '0755'
+  when: vm.vga_passthrough
+  notify: 
+    - update initramfs
+
+- name: "CLEAN | INITRAMFS 2nd vga PCU BUS ID"
+  file:
+    state: absent
+    path: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
+  when: not vm.vga_passthrough
+  notify: 
+    - update initramfs
+
+- name: "KVM win 1803+ fix ignore_msrs"
+  copy:
+    content: |
+      options kvm ignore_msrs=1
+      options kvm report_ignored_msrs=0
+
+    dest: /etc/modprobe.d/kvm.conf
+    mode: '0644'
+
+#- name: "VFIO softdep"
+#  copy:
+#    content: |
+#      #softdep snd_hda_intel pre: vfio-pci
+#      #softdep amdgpu pre: vfio-pci
+#      #softdep iamd_iommu_v2: vfio-pci
+#      #softdep gpu_sched: vfio-pci
+#      #softdep ttm: vfio-pci
+#      #softdep drm_kms_helper: vfio-pci
+#      #softdep drm: vfio-pci
+#      #softdep i2c_algo_bit: vfio-pci
+#
+#    dest: /etc/modprobe.d/amdgpu.conf 
+#    mode: '0644'
+
+# http://vfio.blogspot.com/2015/05/vfio-gpu-how-to-series-part-3-host.html
+# https://www.reddit.com/r/VFIO/comments/73og2w/cant_get_amdgpu_driver_to_stop_grabbing_2nd_gpu/
+#        softdep amdgpu pre: vfio-pci  (doesnt work)
+- name: "VFIO disable vfio-pci vgas from arbitration"
+  copy:
+    content: |
+      options vfio-pci disable_vga=1 disable_idle_d3=1
+
+    dest: /etc/modprobe.d/vfiopci.conf
+    mode: '0644'
+
+- name: "Unbind PCIe Devices script"
+  copy:
+    content: |
+      #!/bin/sh
+
+      DEVS="{{ vm.bus_ids | join(' ') | replace(':','_') | replace('.','_') }}"
+
+      for DEV in $DEVS; do
+        echo -n "$DEV -> "
+        virsh nodedev-detach pci_${DEV} || ( sleep 1 ; virsh nodedev-detach pci_${DEV} )
+      done
+      sleep 1
+
+    dest: /usr/local/bin/unbind-vga.sh
+    mode: '0755'
+  when: vm.vga_passthrough
+
+- name: "CLEAN | Unbind PCIe Devices script"
+  file:
+    state: absent
+    path: /usr/local/bin/unbind-vga.sh
+  when: not vm.vga_passthrough
+
+- name: "Bind PCIE Devices script"
+  copy:
+    content: |
+      #!/bin/sh
+
+      DEVS="{{vm.bus_ids | join(' ') | replace(':','_') | replace('.','_')}}"
+
+      for DEV in $DEVS; do
+        echo -n "$DEV -> "
+        virsh nodedev-reattach pci_${DEV}
+      done
+      sleep 1
+
+    dest: /usr/local/bin/bind-vga.sh
+    mode: '0755'
+
+- name: "CLEAN | Bind PCIE Devices script"
+  file:
+    state: absent
+    path: /usr/local/bin/bind-vga.sh
+  when: not vm.vga_passthrough
+
+- name: "Unbind systemd service (not enabled)"
+  copy:
+    content: |
+      [Unit]
+      Description=Unbind 2nd VGA
+      Before=display-manager.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/unbind-vga.sh
+      StandardOutput=null
+      StandardError=null
+      KillMode=process
+      RemainsAfterExist=true
+
+      [Install]
+      RequiredBy=display-manager.service
+
+    dest: /lib/systemd/system/unbind-vga.service
+    mode: '0644'
+
+- name: "CLEAN | Unbind systemd service (not enabled)"
+  file:
+    state: absent
+    dest: /lib/systemd/system/unbind-vga.service
+  when: not vm.vga_passthrough
+
+#  - name: "XORG fix run before display manager"
+#    systemd:
+#      name: unbind-vga.service
+#      enabled: yes
+
+- name: "SYSCTL hugepages settings"
+  sysctl:
+    state: present
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+  with_items:
+    - name:  'kernel.shmmax'
+      value: '17179869184'    # default value was: '8589934592'
+    - name:  'vm.hugetlb_shm_group'
+      value: '108'            # defaul value was: '129'
+                              # but shm_grou == getent group kvm
+    - name:  'vm.min_free_kbytes'
+      value: '112640'
+
+- name: "HUGEPAGES mount fstab"
+  mount:
+    path: /dev/hugepages
+    src: hugetlbfs
+    fstype: hugetlbfs
+    opts: mode=1770,gid=108
+    state: present
+
+# https://forums.linuxmint.com/viewtopic.php?t=323152
+#  initramfs unpacking failed: Decoding failedj
+- name: "FIX: initramfs unpacking failed: Decoding failed"
+  lineinfile:
+    path: '/etc/initramfs-tools/initramfs.conf'
+    regexp: '^COMPRESS=.*'
+    line: 'COMPRESS=gzip'
+  notify: update initramfs
+
+- name: "HUGEPAGES on kernel boot"
+  lineinfile:
+    path: '/etc/initramfs-tools/modules'
+    regexp: '^{{ item }}$'
+    line: '{{ item }}'
+  with_items:
+    - vfio
+    - vfio_iommu_type1
+    - vfio_pci
+    - vfio_virqfd
+    - vhost-net
+  notify: update initramfs
+
+- name: "Adding libvirt-qemu group to user {{ lookup('env', 'USER') }}"
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "libvirt-qemu"
+    append: yes
+
+- name: "Adding kvm group to user {{ lookup('env', 'USER') }}"
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "kvm"
+    append: yes
+
+# ToDo: 
+#
+#   https://access.redhat.com/sites/default/files/attachments/ovmf-whtepaper-031815.pdf
+#   /etc/libvirt/qemu.con
+# Note: 
+#   These paths wont have write privileges for user, it woudl be better to copy to other place 
+#   with users's ownership
+#
+# nvram = [
+# "/usr/share/OVMF/OVMF_CODE.fd:/usr/share/OVMF/OVMF_VARS.fd",
+# "/usr/share/OVMF/OVMF_CODE.secboot.fd:/usr/share/OVMF/OVMF_VARS.fd",
+# "/usr/share/AAVMF/AAVMF_CODE.fd:/usr/share/AAVMF/AAVMF_VARS.fd",
+# "/usr/share/AAVMF/AAVMF32_CODE.fd:/usr/share/AAVMF/AAVMF32_VARS.fd",
+# "/usr/share/OVMF/OVMF_CODE.ms.fd:/usr/share/OVMF/OVMF_VARS.ms.fd"
+# ]
+

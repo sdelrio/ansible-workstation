@@ -1,0 +1,60 @@
+---
+# tasks file for tools
+
+- name: "Add apt key for kubectl"
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: "Add apt repositoyy for kubectl"
+  apt_repository:
+    repo: "deb https://apt.kubernetes.io/ kubernetes-xenial main"
+    state: present
+    filename: kubectl
+
+- name: "Add apt key for visualstudio code"
+  apt_key:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    state: present
+
+- name: "Add apt repositoyy for visualstudio code"
+  apt_repository:
+    repo: "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main"
+    state: present
+    filename: vscode
+
+- name: "APT Tools packages"
+  apt:
+    name:
+      - vim               #  vim visual editor, not just the simple one
+      - openssh-server
+      - git
+      - python3-pip
+      - smartmontools
+      - gsmartcontrol     # For HDD/SSD smart graphical tools
+      - zsh
+      - fonts-powerline
+      - zsh-autosuggestions
+      - zsh-syntax-highlighting
+      - kubectl           # for google kubectl 
+      - code              # VScode
+      - docker.io         # Ubuntu/Mint docker 19.xx version
+      - docker-compose
+
+- name: "Adding docker group to user {{ lookup('env', 'USER') }}"
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    groups: "docker"
+    append: yes
+
+- name: Download tilt install file
+  unarchive:
+    src: https://github.com/tilt-dev/tilt/releases/download/v{{ tilt_version }}/tilt.{{ tilt_version }}.linux.x86_64.tar.gz
+    dest: "/home/{{ lookup('env', 'USER') }}/.local/bin"
+    remote_src: yes
+    owner: "{{ lookup('env', 'USER') }}"
+    group: "{{ lookup('env', 'USER') }}"
+    exclude:
+      - LICENSE
+      - README.md 
+

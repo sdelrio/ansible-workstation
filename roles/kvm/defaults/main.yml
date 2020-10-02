@@ -1,0 +1,12 @@
+---
+# defaults file for kvm
+grub:
+  filename: /etc/default/grub
+  hugepages: 8192
+
+vm:
+  vga_passthrough: false
+  bus_ids:
+    - 0000:0a:00.0
+    - 0000:0a:00.1
+
