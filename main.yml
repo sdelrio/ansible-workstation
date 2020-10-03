@@ -8,7 +8,7 @@
 
   # Become diferences:
   #  https://www.middlewareinventory.com/blog/ansible-sudo-ansible-become-example/
-  
+
   become: yes
   become_method: sudo
 
@@ -18,8 +18,8 @@
 #      filename: /etc/default/grub
 #      hugepages: 8192
 #    vm:
-#      second_vga_passthrough: true
-#      bus_ids:
+#      vga_passthrough: true
+#      vga_bus_ids:
 #        - 0000:0a:00.0
 #        - 0000:0a:00.1
 

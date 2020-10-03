@@ -5,8 +5,7 @@ grub:
   hugepages: 8192
 
 vm:
-  second_vga_passthrough: false
-  bus_ids:
-    - 0000:0a:00.0
-    - 0000:0a:00.1
-
+  vga_passthrough: true
+  vga_bus_ids:
+    - '0000:09:00.0'
+    - '0000:09:00.1'

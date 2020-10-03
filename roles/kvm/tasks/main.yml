@@ -51,25 +51,26 @@
 
 # Disable 2nd vga at boot time before any other apps uses amdgpu driver
 
-- name: "INITRAMFS 2nd vga PCU BUS ID"
+- name: "INITRAMFS VGA PCU BUS ID"
   copy:
     content: |
       #!/bin/sh
 
-      DEVS="{{ vm.bus_ids | join(' ') }}"
+      DEVS="{{ vm.vga_bus_ids | join(' ') }}"
       #echo VFIO
       ls -l /sys/bus/pci/drivers/vfio-pci
       echo AMDGPU
       ls -l /sys/bus/pci/drivers/amdgpu
-      echo "disconnecting amd graphics"
-      echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.0/remove
-      echo "disconnecting amd sound counterpart"
-      echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.1/remove
+      #echo "disconnecting 2nd amd graphics"
+      #echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.0/remove
+      #echo "disconnecting amd sound counterpart"
+      #echo "1" | tee -a /sys/bus/pci/devices/0000\:0a\:00.1/remove
 
       for DEV in $DEVS; do
         echo "vfio-pci" > "/sys/bus/pci/devices/$DEV/driver_override"
       #  echo "$DEV" > /sys/bus/pci/devices/$DEV/driver/unbind
       #  echo "$DEV" > /sys/bus/pci/drivers/vfio-pci/bind
+        echo -n "$DEV -> "
         cat "/sys/bus/pci/devices/$DEV/driver_override"
       done
 
@@ -77,16 +78,16 @@
 
     dest: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
     mode: '0755'
-  when: vm.second_vga_passthrough
-  notify: 
+  when: vm.vga_passthrough
+  notify:
     - update initramfs
 
 - name: "CLEAN | INITRAMFS 2nd vga PCU BUS ID"
   file:
     state: absent
     path: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
-  when: not vm.second_vga_passthrough
-  notify: 
+  when: not vm.vga_passthrough
+  notify:
     - update initramfs
 
 - name: "KVM win 1803+ fix ignore_msrs"
@@ -110,7 +111,7 @@
 #      #softdep drm: vfio-pci
 #      #softdep i2c_algo_bit: vfio-pci
 #
-#    dest: /etc/modprobe.d/amdgpu.conf 
+#    dest: /etc/modprobe.d/amdgpu.conf
 #    mode: '0644'
 
 # http://vfio.blogspot.com/2015/05/vfio-gpu-how-to-series-part-3-host.html
@@ -129,7 +130,7 @@
     content: |
       #!/bin/sh
 
-      DEVS="{{ vm.bus_ids | join(' ') | replace(':','_') | replace('.','_') }}"
+      DEVS="{{ vm.vga_bus_ids | join(' ') | replace(':','_') | replace('.','_') }}"
 
       for DEV in $DEVS; do
         echo -n "$DEV -> "
@@ -139,20 +140,20 @@
 
     dest: /usr/local/bin/unbind-vga.sh
     mode: '0755'
-  when: vm.second_vga_passthrough
+  when: vm.vga_passthrough
 
 - name: "CLEAN | Unbind PCIe Devices script"
   file:
     state: absent
     path: /usr/local/bin/unbind-vga.sh
-  when: not vm.second_vga_passthrough
+  when: not vm.vga_passthrough
 
 - name: "Bind PCIE Devices script"
   copy:
     content: |
       #!/bin/sh
 
-      DEVS="{{vm.bus_ids | join(' ') | replace(':','_') | replace('.','_')}}"
+      DEVS="{{vm.vga_bus_ids | join(' ') | replace(':','_') | replace('.','_')}}"
 
       for DEV in $DEVS; do
         echo -n "$DEV -> "
@@ -162,19 +163,19 @@
 
     dest: /usr/local/bin/bind-vga.sh
     mode: '0755'
-  when: vm.second_vga_passthrough
+  when: vm.vga_passthrough
 
 - name: "CLEAN | Bind PCIE Devices script"
   file:
     state: absent
     path: /usr/local/bin/bind-vga.sh
-  when: not vm.second_vga_passthrough
+  when: not vm.vga_passthrough
 
 - name: "Unbind systemd service (not enabled)"
   copy:
     content: |
       [Unit]
-      Description=Unbind 2nd VGA
+      Description=Unbind VGA
       Before=display-manager.service
 
       [Service]
@@ -190,13 +191,13 @@
 
     dest: /lib/systemd/system/unbind-vga.service
     mode: '0644'
-  when: vm.second_vga_passthrough
+  when: vm.vga_passthrough
 
 - name: "CLEAN | Unbind systemd service (not enabled)"
   file:
     state: absent
     dest: /lib/systemd/system/unbind-vga.service
-  when: not vm.second_vga_passthrough
+  when: not vm.vga_passthrough
 
 #  - name: "XORG fix run before display manager"
 #    systemd:
@@ -268,11 +269,33 @@
     group: root
   notify: restart libvirtd
 
-# ToDo: 
+- name: "AMD hooks path"
+  file:
+      path: "{{ item }}"
+      state: directory
+      mode: 0755
+      owner: root
+      group: root
+  with_items:
+    - /etc/libvirt/hooks/qemu.d/amd/prepare/begin
+    - /etc/libvirt/hooks/qemu.d/amd/release/end
+
+- name: "AMD qemu sample entry hook script"
+  template:
+      dest: "/etc/libvirt/hooks/qemu.d/amd/{{ item }}"
+      src: "hooks/qemu.d/amd/{{ item }}"
+      mode: 0755
+      owner: root
+      group: root
+  with_items:
+    - prepare/begin/start.sh
+    - release/end/revert.sh
+
+# ToDo:
 #
 #   https://access.redhat.com/sites/default/files/attachments/ovmf-whtepaper-031815.pdf
 #   /etc/libvirt/qemu.con
-# Note: 
+# Note:
 #   These paths wont have write privileges for user, it woudl be better to copy to other place 
 #   with users's ownership
 #
