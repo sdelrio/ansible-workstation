@@ -77,7 +77,7 @@
 
     dest: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
     mode: '0755'
-  when: vm.vga_passthrough
+  when: vm.second_vga_passthrough
   notify: 
     - update initramfs
 
@@ -85,7 +85,7 @@
   file:
     state: absent
     path: /etc/initramfs-tools/scripts/init-top/vfio-override.sh
-  when: not vm.vga_passthrough
+  when: not vm.second_vga_passthrough
   notify: 
     - update initramfs
 
@@ -139,13 +139,13 @@
 
     dest: /usr/local/bin/unbind-vga.sh
     mode: '0755'
-  when: vm.vga_passthrough
+  when: vm.second_vga_passthrough
 
 - name: "CLEAN | Unbind PCIe Devices script"
   file:
     state: absent
     path: /usr/local/bin/unbind-vga.sh
-  when: not vm.vga_passthrough
+  when: not vm.second_vga_passthrough
 
 - name: "Bind PCIE Devices script"
   copy:
@@ -162,12 +162,13 @@
 
     dest: /usr/local/bin/bind-vga.sh
     mode: '0755'
+  when: vm.second_vga_passthrough
 
 - name: "CLEAN | Bind PCIE Devices script"
   file:
     state: absent
     path: /usr/local/bin/bind-vga.sh
-  when: not vm.vga_passthrough
+  when: not vm.second_vga_passthrough
 
 - name: "Unbind systemd service (not enabled)"
   copy:
@@ -189,12 +190,13 @@
 
     dest: /lib/systemd/system/unbind-vga.service
     mode: '0644'
+  when: vm.second_vga_passthrough
 
 - name: "CLEAN | Unbind systemd service (not enabled)"
   file:
     state: absent
     dest: /lib/systemd/system/unbind-vga.service
-  when: not vm.vga_passthrough
+  when: not vm.second_vga_passthrough
 
 #  - name: "XORG fix run before display manager"
 #    systemd:
@@ -256,6 +258,15 @@
     name: "{{ lookup('env', 'USER') }}"
     groups: "kvm"
     append: yes
+
+- name: "Download qemu hooks script"
+  get_url:
+    url: 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/master/libvirt_hooks/qemu'
+    dest: '/etc/libvirt/hooks/qemu'
+    mode: 0755
+    owner: root
+    group: root
+  notify: restart libvirtd
 
 # ToDo: 
 #
