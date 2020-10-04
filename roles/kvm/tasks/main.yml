@@ -269,7 +269,7 @@
     group: root
   notify: restart libvirtd
 
-- name: "AMD hooks path"
+- name: "AMD VGA passthrough hooks path"
   file:
       path: "{{ item }}"
       state: directory
@@ -277,19 +277,35 @@
       owner: root
       group: root
   with_items:
-    - /etc/libvirt/hooks/qemu.d/amd/prepare/begin
-    - /etc/libvirt/hooks/qemu.d/amd/release/end
+    - /etc/libvirt/hooks/amd/prepare/begin
+    - /etc/libvirt/hooks/amd/release/end
 
-- name: "AMD qemu sample entry hook script"
+- name: "AMD qemu sample entry hook scripts"
   template:
-      dest: "/etc/libvirt/hooks/qemu.d/amd/{{ item }}"
-      src: "hooks/qemu.d/amd/{{ item }}"
+      dest: "/etc/libvirt/hooks/amd/{{ item }}"
+      src: "hooks/amd/{{ item }}"
       mode: 0755
       owner: root
       group: root
   with_items:
     - prepare/begin/start.sh
     - release/end/revert.sh
+
+- name: "Copy qemu hugepages script"
+  copy:
+    src: 'hooks/hugepages.sh'
+    dest: '/etc/libvirt/hooks/hugepages.sh'
+    mode: 0755
+    owner: root
+    group: root
+
+#- name: "Download qemu hugepages script"
+#  get_url:
+#    url: 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/master/libvirt_hooks/hooks/hugepages.sh'
+#    dest: '/etc/libvirt/hooks/hugepages.sh'
+#    mode: 0755
+#    owner: root
+#    group: root
 
 # ToDo:
 #
