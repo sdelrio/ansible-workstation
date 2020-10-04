@@ -2,7 +2,7 @@
 # defaults file for kvm
 grub:
   filename: /etc/default/grub
-  hugepages: 8192
+  hugepages: 0    # Initial hugepages, that doesn't mean it's disabled
 
 vm:
   vga_passthrough: true
