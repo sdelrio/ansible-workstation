@@ -45,7 +45,9 @@ function prepare/begin {
   TRIES=0
   while (( HPG_CURRENT != HPG_NEW && TRIES < 1000 ))
   do
-    echo 1 > /proc/sys/vm/compact_memory            ## defrag ram
+    sync
+    echo 3 > /proc/sys/vm/drop_caches               ## Remove file caching
+    echo 1 > /proc/sys/vm/compact_memory            ## Defrag RAM
 
     echo "$HPG_NEW" > "$HPG_PATH"
     HPG_CURRENT=$(cat "${HPG_PATH}")
