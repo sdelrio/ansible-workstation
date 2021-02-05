@@ -12,6 +12,8 @@
       - hwloc                 # lstopo utility
       - libhugetlbfs-bin      # hugeadm: Tools to ease use of hugetlbfs
       - nfs-kernel-server     # To share files between host and guest
+      - vagrant
+      - vagrant-libvirt
 
 # GRUB CMD LINE
 
