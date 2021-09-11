@@ -1,2 +1,5 @@
 ---
 # defaults file for performance
+
+# Fix some npm uses like ENOSPC: System limit for number of file watchers reached
+performance_inotify_max_user_watches: 65535

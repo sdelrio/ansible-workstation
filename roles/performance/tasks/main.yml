@@ -1,2 +1,10 @@
 ---
 # tasks file for performance
+- name: "SYSCTL settings"
+  sysctl:
+    state: present
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+  with_items:
+    - name:  'fs.inotify.max_user_watches'
+      value: "{{ performance_inotify_max_user_watches }}"
