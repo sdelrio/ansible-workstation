@@ -32,4 +32,9 @@
       tags: [ photo ]
     - role: gaming
       tags: [ gaming ]
+    - role: multimedia
+      tags: [ multimedia ]
+    - role: performance
+      tags: [ performance ]
+
 

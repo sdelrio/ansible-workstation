@@ -79,3 +79,7 @@ ansible-playbook main.yml -t gaming
 * Lutris
 * Steam
 
+# Performance
+
+* npm
+  * fs.inotify.max_user_watches
