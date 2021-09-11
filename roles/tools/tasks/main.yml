@@ -23,6 +23,18 @@
     state: present
     filename: vscode
 
+- name: "Add apt key for google chrome"
+  apt_key:
+    url: https://dl.google.com/linux/linux_signing_key.pub
+    state: present
+
+- name: "Add apt repository for google chrome"
+  apt_repository:
+    repo: "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main"
+    state: present
+    filename: chrome
+    update_cache: yes
+
 - name: "APT Tools packages"
   apt:
     name:
@@ -40,6 +52,7 @@
       - code              # VScode
       - docker.io         # Ubuntu/Mint docker 19.xx version
       - docker-compose
+#      - google-chrome-stable
 
 - name: "Adding docker group to user {{ lookup('env', 'USER') }}"
   user:
