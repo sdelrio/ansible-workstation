@@ -1,0 +1,18 @@
+---
+# tasks file for multimedia
+
+- name: "Add apt repositofy for obs latest releases"
+  apt_repository:
+    repo: 'ppa:obsproject/obs-studio'
+    codename:  focal
+    state: present
+    filename: obs-studio
+
+- name: "APT Multimedia packages"
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+    name:
+      - obs-studio
+      - obs-plugins
+    state: latest
