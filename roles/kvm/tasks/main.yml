@@ -1,5 +1,11 @@
 ---
 
+- name: "Add Jacob Zimmermann APT repo"
+  apt_repository:
+    repo: ppa:jacob/virtualisation
+    state: present
+    codename: focal
+
 - name: "APT VM packages"
   apt:
     name:
